@@ -40,8 +40,8 @@ from datetime import datetime, timezone
 # ─────────────────────────────────────────────────────────────
 STATIONS = [
     {"id": 129, "name": "Pink Mountain", "lat": 56.94, "lon": -122.70, "alt": 960.10},
-    # {"id": 130, "name": "Station B",     "lat": 55.00, "lon": -120.00, "alt": 500.0},
-    # {"id": 131, "name": "Station C",     "lat": 57.50, "lon": -121.00, "alt": 800.0},
+    # {"id": 120, "name": "Silver",     "lat": 57.37, "lon": -121.41, "alt": 835},
+    # {"id": 131, "name": "Muskwa",     "lat": 57.88, "lon": -123.62, "alt": 769},
 ]
 
 EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
