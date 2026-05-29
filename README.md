@@ -5,7 +5,7 @@ This repository will contains scripts, notebooks and files to evaluate the forec
 
 **Authors**
 
-Jessie Chen
+Jessie Chen\
   Assisted by Claude by Anthropic (claude-sonnet-4-6, claude.ai) for coding and documentation
 
 Cosmo Pearson-Young
