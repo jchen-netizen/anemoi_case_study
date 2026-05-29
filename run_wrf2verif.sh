@@ -1,7 +1,7 @@
 #!/bin/bash
-# Usage: ./run_wrf2verif.sh <base_path> <variable> <output.nc> <folder1> [folder2 ...]
+# Usage: bash run_wrf2verif.sh <base_path> <variable> <output.nc> <folder1> [folder2 ...]
 # Example:
-#   ./run_wrf2verif.sh /Volumes/webdav/Share_Forecasts/WAC00WG-01 T2 output.nc \
+#   bash run_wrf2verif.sh /Volumes/webdav/Share_Forecasts/WAC00WG-01 T2 output.nc \
 #       23051000 23051100 23061000 23081000
 
 BASE_PATH="$1"
