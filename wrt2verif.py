@@ -35,9 +35,9 @@ import xarray as xr
 import netCDF4 as nc
 from datetime import datetime, timezone
 
-# ─────────────────────────────────────────────────────────────
+# =============================================================
 # STATIONS  — edit / extend this list as needed
-# ─────────────────────────────────────────────────────────────
+# =============================================================
 STATIONS = [
     {"id": 129, "name": "Pink Mountain", "lat": 56.94, "lon": -122.70, "alt": 960.10},
     # {"id": 120, "name": "Silver",     "lat": 57.37, "lon": -121.41, "alt": 835},
@@ -47,9 +47,9 @@ STATIONS = [
 EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 
-# ─────────────────────────────────────────────────────────────
+# =============================================================
 # HELPERS
-# ─────────────────────────────────────────────────────────────
+# =============================================================
 
 def parse_init_time(s):
     """Parse YYYYMMDDHH → datetime (UTC)."""
@@ -100,9 +100,9 @@ def seconds_since_epoch(dt):
     return int((dt - EPOCH).total_seconds())
 
 
-# ─────────────────────────────────────────────────────────────
+# =============================================================
 # CORE: read WRF files → (leadtimes, fcst values per station)
-# ─────────────────────────────────────────────────────────────
+# =============================================================
 
 def extract_from_wrf_files(wrf_files, init_time, variable):
     """
@@ -164,9 +164,9 @@ def extract_from_wrf_files(wrf_files, init_time, variable):
     return sorted_leads, fcst_array
 
 
-# ─────────────────────────────────────────────────────────────
+# =============================================================
 # WRITE / MERGE VERIF NETCDF
-# ─────────────────────────────────────────────────────────────
+# =============================================================
 
 def write_verif_nc(output_file, init_time, variable, leadtimes, fcst_array):
     """
@@ -183,11 +183,11 @@ def write_verif_nc(output_file, init_time, variable, leadtimes, fcst_array):
 
     init_unix = seconds_since_epoch(init_time)
 
-    # ── Determine global leadtime axis (union of existing + new) ──
+    # === Determine global leadtime axis (union of existing + new) ===
     new_lead_arr = np.array(leadtimes, dtype=np.float32)
 
     if os.path.exists(output_file):
-        # ── MERGE mode ────────────────────────────────────────────
+        # === MERGE mode =============================================================
         print(f"  Output file exists — merging into {output_file} ...")
 
         with nc.Dataset(output_file, "r") as existing:
@@ -238,7 +238,7 @@ def write_verif_nc(output_file, init_time, variable, leadtimes, fcst_array):
                        ids, lats, lons, alts, merged_fcst)
 
     else:
-        # ── CREATE mode ───────────────────────────────────────────
+        # === CREATE mode =============================================================
         print(f"  Creating new output file: {output_file}")
         times_arr = np.array([init_unix], dtype=np.int32)
         # fcst shape must be (1, n_leads, n_locs)
@@ -315,9 +315,9 @@ def _write_nc_file(output_file, variable, times_arr, leads_arr,
           f"(times={n_times}, leadtimes={n_leads}, locations={n_locs})")
 
 
-# ─────────────────────────────────────────────────────────────
+# =============================================================
 # MAIN
-# ─────────────────────────────────────────────────────────────
+# =============================================================
 
 def main():
     parser = argparse.ArgumentParser(
