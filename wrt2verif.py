@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-wrf_to_verif.py — Extract WRF point forecasts into VERIF-format NetCDF.
+wrf2verif.py — Extract WRF point forecasts into VERIF-format NetCDF.
 
 Usage:
-    python wrf_to_verif.py <wrf_files> <init_time> <variable> <output.nc>
+    python wrf2verif.py <wrf_files> <init_time> <variable> <output.nc>
 
 Arguments:
     wrf_files       One or more WRF output files (glob-expanded by shell, e.g. wrfout_d02_*)
@@ -12,8 +12,8 @@ Arguments:
     output.nc       Output VERIF-format NetCDF file
 
 Examples:
-    python wrf_to_verif.py wrfout_d02_* 2023050800 T2 output.nc
-    python wrf_to_verif.py wrfout_d02_2023-05-08_* 2023050800 T2 output.nc
+    python wrf2verif.py wrfout_d02_* 2023050800 T2 output.nc
+    python wrf2verif.py wrfout_d02_2023-05-08_* 2023050800 T2 output.nc
 
 Behaviour:
     - If output.nc already exists AND contains the same variable, the new
