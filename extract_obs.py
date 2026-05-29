@@ -19,7 +19,7 @@ Behaviour:
     - extracts only the specified variable (e.g. temperature), 
         date_time (e.g. 2023-05-08 00:00:00) and station_code (e.g. 129)
     - appends all data to output.csv
-        output.csv will have columns: date_time, station_code, var
+        output.csv will have columns: date_time, station_code, obs
 
 Stations (hardcoded — add more to STATIONS list):
     id=129  Pink Mountain  lat=56.94  lon=-122.70  alt=960.10 m
@@ -74,19 +74,24 @@ for fpath in sorted(data_files):
     df.columns = df.columns.str.lower().str.replace(' ', '_')
     df = df[df['station_code'].isin(STATION_IDS)]
     df = df[['date_time', 'station_code', variable]]
-    df = df.rename(columns={variable: 'var'}) # change variable name to var for easier concatenation later
-    frames.append(df[['date_time', 'station_code', 'var']])
+    
+    # change variable name to obs for easier concatenation later
+    df = df.rename(columns={variable: 'obs', 
+                            'station_code': 'location', 
+                            'date_time': 'obs_time'})
+
+    frames.append(df[['obs_time', 'location', 'obs']])
 
 new_data = pd.concat(frames, ignore_index=True)
 
 # Probably not needed, but just in case, append to existing output file, drop duplicates
 if os.path.exists(output_csv):
-    existing_data = pd.read_csv(output_csv, parse_dates=["date_time"])
+    existing_data = pd.read_csv(output_csv, parse_dates=["obs_time"])
     new_data = pd.concat([existing_data, new_data], ignore_index=True)
 
 new_data = (new_data
-    .drop_duplicates(subset=["date_time", "station_code"])
-    .sort_values(["station_code", "date_time"])
+    .drop_duplicates(subset=["obs_time", "location"])
+    .sort_values(["location", "obs_time"])
     .reset_index(drop=True))
  
 new_data.to_csv(output_csv, index=False)
