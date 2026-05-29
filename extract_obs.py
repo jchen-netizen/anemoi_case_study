@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-extract_obs.py — Extract BC Wildfire Weather Stations data in CSV format.
+extract_obs.py — Extract BC Wildfire weather stations data in CSV format.
 
 Usage:
     python3 extract_obs.py <data_files> <variable> <output.csv>

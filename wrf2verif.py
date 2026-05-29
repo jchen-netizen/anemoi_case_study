@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-wrf2verif.py — Extract WRF point forecasts into VERIF-format NetCDF.
+wrf2verif.py — Extract WRF point forecasts into Verif-format NetCDF.
 
 Usage:
     python3 wrf2verif.py <wrf_files> <init_time> <variable> <output.nc>
@@ -9,7 +9,7 @@ Arguments:
     wrf_files       One or more WRF output files (glob-expanded by shell, e.g. wrfout_d02_*)
     init_time       Forecast initialization time as YYYYMMDDHH  (e.g. 2023050800)
     variable        WRF variable name to extract               (e.g. T2)
-    output.nc       Output VERIF-format NetCDF file
+    output.nc       Output Verif-format NetCDF file
 
 Examples:
     python3 wrf2verif.py wrfout_d02_* 2023050800 T2 output.nc
@@ -304,7 +304,7 @@ def _write_nc_file(output_file, variable, times_arr, leads_arr,
         v.units     = "celsius" if variable in ("T2", "T", "TSK", "TH2") else "unknown"
         v.wrf_variable = variable
 
-        # Global attributes (VERIF standard)
+        # Global attributes (Verif standard)
         out.long_name     = "Temperature" if variable in ("T2", "T", "TSK", "TH2") else variable
         out.standard_name = "air_temperature" if variable in ("T2", "T", "TSK", "TH2") else variable
         out.verif_version = "1.0.0"
@@ -321,14 +321,14 @@ def _write_nc_file(output_file, variable, times_arr, leads_arr,
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Convert WRF output files to VERIF-format NetCDF.",
+        description="Convert WRF output files to Verif-format NetCDF.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__
     )
     parser.add_argument("netcdf_files",   nargs="+", help="WRF output file(s)")
     parser.add_argument("initialized_time", help="Init time as YYYYMMDDHH (e.g. 2023050800)")
     parser.add_argument("variable",       help="WRF variable name (e.g. T2)")
-    parser.add_argument("output_netcdf_file", help="Output VERIF NetCDF filename")
+    parser.add_argument("output_netcdf_file", help="Output Verif-format NetCDF filename")
 
     args = parser.parse_args()
 
@@ -338,7 +338,7 @@ def main():
     output_file = args.output_netcdf_file
 
     print(f"\n{'='*60}")
-    print(f"  WRF → VERIF converter")
+    print(f"  WRF → Verif converter")
     print(f"  Init time : {init_time.strftime('%Y-%m-%d %H:%M UTC')}")
     print(f"  Variable  : {variable}")
     print(f"  Files     : {len(wrf_files)} file(s)")
@@ -349,7 +349,7 @@ def main():
     leadtimes, fcst_array = extract_from_wrf_files(wrf_files, init_time, variable)
     print(f"  → Lead hours: {leadtimes}")
 
-    print("\nStep 2: Writing VERIF NetCDF ...")
+    print("\nStep 2: Writing Verif-format NetCDF ...")
     write_verif_nc(output_file, init_time, variable, leadtimes, fcst_array)
 
     print("\nAll done!\n")
