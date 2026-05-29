@@ -8,17 +8,18 @@ Usage:
 Arguments:
     data_files      One or more data files containing weather station data (e.g. 2023-05-*.csv)
     variable        Variable name to extract                       (e.g. temperature)
-    output.csv      Output CSV file                                (e.g. observation.csv)
+    output.csv      Output CSV file                                (e.g. output.csv)
 
 Examples:
-    python3 extract_obs.py 2023-05-*.csv temperature observation.csv
+    python3 extract_obs.py 2023-05-*.csv temperature output.csv
 
 Behaviour:
     - renames columns to lowercase and replaces spaces with underscores
     - filters to only include desired stations (see STATIONS list below)
     - extracts only the specified variable (e.g. temperature), 
         date_time (e.g. 2023-05-08 00:00:00) and station_code (e.g. 129)
-    - appends all data to observation.csv
+    - appends all data to output.csv
+        output.csv will have columns: date_time, station_code, var
 
 Stations (hardcoded — add more to STATIONS list):
     id=129  Pink Mountain  lat=56.94  lon=-122.70  alt=960.10 m
@@ -73,7 +74,8 @@ for fpath in sorted(data_files):
     df.columns = df.columns.str.lower().str.replace(' ', '_')
     df = df[df['station_code'].isin(STATION_IDS)]
     df = df[['date_time', 'station_code', variable]]
-    frames.append(df[['date_time', 'station_code', variable]])
+    df = df.rename(columns={variable: 'var'}) # change variable name to var for easier concatenation later
+    frames.append(df[['date_time', 'station_code', 'var']])
 
 new_data = pd.concat(frames, ignore_index=True)
 
