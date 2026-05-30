@@ -89,7 +89,8 @@ new_data = pd.concat(frames, ignore_index=True)
 
 # Probably not needed, but just in case, append to existing output file, drop duplicates
 if os.path.exists(output_csv):
-    existing_data = pd.read_csv(output_csv, parse_dates=["obs_time"])
+    existing_data = pd.read_csv(output_csv)
+    existing_data["obs_time"] = pd.to_datetime(existing_data["obs_time"], format="mixed")
     new_data = pd.concat([existing_data, new_data], ignore_index=True)
 
 new_data = (new_data
