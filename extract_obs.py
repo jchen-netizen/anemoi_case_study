@@ -79,8 +79,11 @@ for fpath in sorted(data_files):
     df = df.rename(columns={variable: 'obs', 
                             'station_code': 'location', 
                             'date_time': 'obs_time'})
-
-    frames.append(df[['obs_time', 'location', 'obs']])
+    
+    # convert to UTC (data is in local time, which is UTC-7)
+    df["obs_time"] = pd.to_datetime(df["obs_time"], format="%Y%m%d%H") + pd.Timedelta(hours=7) 
+    
+    frames.append(df[['obs_time', 'location', 'obs']]) 
 
 new_data = pd.concat(frames, ignore_index=True)
 
