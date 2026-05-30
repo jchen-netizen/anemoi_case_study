@@ -32,7 +32,9 @@ nc_in      = sys.argv[2]
 nc_out     = sys.argv[3]
 
 # Load obs CSV
-obs_df = pd.read_csv(csv_file, parse_dates=["obs_time"])
+obs_df = pd.read_csv(csv_file)
+obs_df["obs_time"] = pd.to_datetime(obs_df["obs_time"], format="%Y%m%d%H")
+obs_df = obs_df.dropna(subset=["obs"])  # skip NaN obs values
 
 # Copy input NetCDF to output NetCDF (so we can modify it in-place)
 shutil.copy2(nc_in, nc_out)
