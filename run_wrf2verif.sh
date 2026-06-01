@@ -19,3 +19,5 @@ for FOLDER in "$@"; do
     echo ">>> ${FOLDER}  (init: ${INIT_TIME}, ${#FILES[@]} files)"
     python3 "${SCRIPT_DIR}/wrf2verif.py" "${FILES[@]}" "$INIT_TIME" "$VARIABLE" "$OUTPUT_NC"
 done
+
+print("All done!")

@@ -354,7 +354,7 @@ def main():
     print("\nStep 2: Writing Verif-format NetCDF ...")
     write_verif_nc(output_file, init_time, variable, leadtimes, fcst_array)
 
-    print("\nAll done!\n")
+    print("\nDone!\n")
 
 
 if __name__ == "__main__":
