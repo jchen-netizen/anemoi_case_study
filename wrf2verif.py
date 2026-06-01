@@ -309,6 +309,7 @@ def _write_nc_file(output_file, variable, times_arr, leads_arr,
         # Global attributes (Verif standard)
         out.long_name     = "Temperature" if variable in ("T2", "T", "TSK", "TH2") else variable
         out.standard_name = "air_temperature" if variable in ("T2", "T", "TSK", "TH2") else variable
+        out.units         = "celsius" if variable in ("T2", "T", "TSK", "TH2") else "unknown"
         out.verif_version = "1.0.0"
         out.source        = "WRF model output"
         out.created_by    = "wrf_to_verif.py"
