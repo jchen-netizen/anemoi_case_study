@@ -1,6 +1,6 @@
 # Useful commands and tips to run Verif
 * 6-hour forecast: \
-`verif input1.nc input2.nc -m timeseries -o 6 -f Timeseries_0h.png -fs 12,6 -lw 0.25 -ms 2 -tickfs 6`
+`verif input1.nc input2.nc -m timeseries -o 6 -f Timeseries_6h.png -fs 12,6 -lw 0.25 -ms 2 -tickfs 6`
 * 12-hour forecast: \
 `verif input1.nc input2.nc -m timeseries -o 12 -f Timeseries_12h.png -fs 12,6 -lw 0.25 -ms 2 -tickfs 6`
 * 18-hour forecast: \
