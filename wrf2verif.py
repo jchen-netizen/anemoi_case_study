@@ -24,6 +24,8 @@ Behaviour:
 
 Stations (hardcoded — add more to STATIONS list):
     id=129  Pink Mountain  lat=56.94  lon=-122.70  alt=960.10 m
+    id=120  Silver        lat=57.37  lon=-121.41  alt=835.00 m
+    id=131  Muskwa        lat=57.88  lon=-123.62  alt=769.00 m
 """
 
 import sys
@@ -40,8 +42,8 @@ from datetime import datetime, timezone
 # =============================================================
 STATIONS = [
     {"id": 129, "name": "Pink Mountain", "lat": 56.94, "lon": -122.70, "alt": 960.10},
-    # {"id": 120, "name": "Silver",     "lat": 57.37, "lon": -121.41, "alt": 835},
-    # {"id": 131, "name": "Muskwa",     "lat": 57.88, "lon": -123.62, "alt": 769},
+    {"id": 120, "name": "Silver",     "lat": 57.37, "lon": -121.41, "alt": 835.00},
+    {"id": 131, "name": "Muskwa",     "lat": 57.88, "lon": -123.62, "alt": 769.00},
 ]
 
 EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
