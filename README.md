@@ -18,3 +18,14 @@ Cosmo Pearson-Young
 * `run_wrf2verif.sh` extract multiple WRF forecast files from multiple WRF forecast folders into Verif-format NetCDF
 * `extract_obs.py` extract BC Wildfire weather stations data in CSV format.
 * `fill_obs.py` fill observation values from CSV into Verif ready NetCDF
+
+**BC Wildfire Stations**
+
+Link to data: https://www.for.gov.bc.ca/ftp/HPR/external/!publish/BCWS_DATA_MART/2023/ \
+
+Stations used: 
+| ID  | Name          | Lat   | Lon      | Alt (m)   |
+|-----|---------------|-------|----------|-----------|
+| 129 | Pink Mountain | 56.94 | -122.70  | 960.10    |
+| 120 | Silver        | 57.37 | -121.41  | 835.00    |
+| 131 | Muskwa        | 57.88 | -123.62  | 769.00    |
