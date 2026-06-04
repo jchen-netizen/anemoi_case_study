@@ -21,7 +21,7 @@ Cosmo Pearson-Young
 
 **BC Wildfire Stations**
 
-Link to data: https://www.for.gov.bc.ca/ftp/HPR/external/!publish/BCWS_DATA_MART/2023/ 
+Link to observation data: https://www.for.gov.bc.ca/ftp/HPR/external/!publish/BCWS_DATA_MART/2023/ 
 
 Stations used: 
 | ID  | Name          | Lat   | Lon      | Alt (m)   |
@@ -29,3 +29,6 @@ Stations used:
 | 129 | Pink Mountain | 56.94 | -122.70  | 960.10    |
 | 120 | Silver        | 57.37 | -121.41  | 835.00    |
 | 131 | Muskwa        | 57.88 | -123.62  | 769.00    |
+
+**Data Directories** 
+* WRF: nextcloud:~/Share_Forecasts/WAC00WG-01
