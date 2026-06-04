@@ -21,7 +21,7 @@ Cosmo Pearson-Young
 
 **BC Wildfire Stations**
 
-Link to data: https://www.for.gov.bc.ca/ftp/HPR/external/!publish/BCWS_DATA_MART/2023/ \
+Link to data: https://www.for.gov.bc.ca/ftp/HPR/external/!publish/BCWS_DATA_MART/2023/ 
 
 Stations used: 
 | ID  | Name          | Lat   | Lon      | Alt (m)   |
