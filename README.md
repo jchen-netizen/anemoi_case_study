@@ -18,6 +18,7 @@ Cosmo Pearson-Young
 * `run_wrf2verif.sh` extract multiple WRF forecast files from multiple WRF forecast folders into Verif-format NetCDF
 * `extract_obs.py` extract BC Wildfire weather stations data in CSV format.
 * `fill_obs.py` fill observation values from CSV into Verif ready NetCDF
+* `.ipynb` notebooks
 
 **BC Wildfire Stations**
 
