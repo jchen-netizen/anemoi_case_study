@@ -58,4 +58,4 @@ Stations used:
 **Author**
 
 Jessie Chen\
-&emsp;Assisted by Claude by Anthropic (claude-sonnet-4-6, claude.ai) for coding and documentation
+&emsp;Assisted by Claude by Anthropic (claude-sonnet-4-6, claude.ai) for coding
