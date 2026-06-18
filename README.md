@@ -17,7 +17,9 @@ Link to Verif data format: https://github.com/WFRT/verif/wiki/Arranging-my-own-d
 * `data/` output files from `run_wrf2verif.sh`, `extract_obs.py`, `fill_obs.py`.
 
 **2D Verification**
-*  `satellite.ipynb` compare satellite observations, tifs with models forecasts.
+* `satellite_imagery.ipynb` compare satellite observations, tifs with models forecasts.
+* `gee_python_api_tutorial.ipynb` GEE Python API tutorial.
+* `gee_extract.js` Backup code of GEE code editor for extracting satellite imagery.
 
 ## Getting Started
 The case study is part of the evaluation of machine learning based forecasts produced by a "stretched-grid" model. \
