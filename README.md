@@ -3,7 +3,7 @@ This repository contains scripts, notebooks and files to evaluate the forecasts 
 The case study is part of the evaluation of machine learning based forecasts produced by a "stretched-grid" model. \
 Anemoi is an open-source platform used for machine learning weather forecasting models.
 
-**Useful links** 
+**Useful Links** 
 
 Link to Google Drive resource: https://drive.google.com/drive/u/0/folders/1iqwsFyJ6j5r8hkQA8rcx-EowqtlSDpkb. \
 Link to Verif data format: https://github.com/WFRT/verif/wiki/Arranging-my-own-data.
@@ -38,7 +38,7 @@ Variables:
 * Water vapour
 * Wind vector
 
-**Observation data**
+**Observation Data**
 
 **BC Wildfire stations**: https://www.for.gov.bc.ca/ftp/HPR/external/!publish/BCWS_DATA_MART/2023/ 
 
