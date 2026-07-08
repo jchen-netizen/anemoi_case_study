@@ -72,6 +72,7 @@ frames = []
 for fpath in sorted(data_files):
     df = pd.read_csv(fpath)
     df.columns = df.columns.str.lower().str.replace(' ', '_')
+    df.columns = df.columns.str.replace(r'^hourly_', '', regex=True) 
     df = df[df['station_code'].isin(STATION_IDS)]
     df = df[['date_time', 'station_code', variable]]
     
