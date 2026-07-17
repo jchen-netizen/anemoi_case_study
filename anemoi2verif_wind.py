@@ -1,25 +1,33 @@
 #!/usr/bin/env python3
 """
-anemoi2verif.py — Extract point forecasts from an Anemoi NetCDF file into Verif-format NetCDF.
+anemoi2verif_wind.py — Extract anemoi/ECMWF-style U/V wind into Verif-format
+                        NetCDF (wind speed + wind direction, two output files).
+
+Adapted from wrf2verif_wind.py the same way anemoi2verif.py was adapted from
+wrf2verif.py
 
 Usage:
-    python3 anemoi2verif.py <nc_files> <variable> <output.nc> [--init-time YYYYMMDDHH]
+    python3 anemoi2verif_wind.py <nc_files> <output.nc> [--level LEVEL]
 
 Arguments:
-    nc_files        One or more source files,
-                     e.g. 20220701T00.nc 20220702T00.nc
-    variable        Variable name to extract, e.g. 2t, 10u, 10v, msl, sp,
-                     t_850, u_500, v_250, z_100, tp
-    output.nc        Output Verif-format NetCDF file (observations left as NaN, to be filled later).
+    nc_files        One or more source files e.g. 20220701T00.nc 20220702T00.nc
+    output.nc       Output Verif-format NetCDF base filename.
+                     Two files are actually written:
+                         <output>_wspd.nc   -> fcst = wind speed (m/s)
+                         <output>_wdir.nc   -> fcst = wind direction (deg, 0-360, from-north)
+
+Options:
+    --level LEVEL     Which u/v pair to use. One of: 10m (default, surface
+                       10u/10v), 50, 100, 250, 500, 850 (pressure-level
+                       u_###/v_### in hPa).
 
 Examples:
-    python3 anemoi2verif.py 20220701T00.nc 2t output.nc
-    python3 anemoi2verif.py 20220701T00.nc 20220702T00.nc t_850 output_t850.nc
+    python3 anemoi2verif_wind.py 20220701T00.nc output.nc
+    python3 anemoi2verif_wind.py 20220701T00.nc 20220702T00.nc output.nc --level 850
 
 Behaviour:
-    - If output.nc already exists AND contains the same variable, each new
-      init time is MERGED in (appended along the time dimension), same as
-      wrf2verif.py.
+    - If an output file already exists AND contains data, the new init time
+      is MERGED in (appended along the time dimension).
     - Observations are left as NaN (fill in later).
 
 Stations (hardcoded — add more to STATIONS list):
@@ -37,7 +45,7 @@ import netCDF4 as nc
 from datetime import datetime
 
 # =============================================================
-# STATIONS  
+# STATIONS  — edit / extend this list as needed
 # =============================================================
 STATIONS = [
     {"id": 129, "name": "Pink Mountain", "lat": 56.94, "lon": -122.70, "alt": 960.10},
@@ -45,15 +53,23 @@ STATIONS = [
     {"id": 131, "name": "Muskwa",     "lat": 57.88, "lon": -123.62, "alt": 769.00},
 ]
 
+# All datetimes in this script are naive and implicitly UTC (matches
+# fill_obs.py's convention of tz_localize(None) on everything).
 EPOCH = datetime(1970, 1, 1)
 
-# Variables where Kelvin -> Celsius 
-TEMPERATURE_VARS = {"2t", "t_50", "t_100", "t_250", "t_500", "t_850"}
+LEVEL_CHOICES = ["10m", "50", "100", "250", "500", "850"]
 
 
 # =============================================================
 # HELPERS
 # =============================================================
+
+def uv_variable_names(level):
+    """Map a --level choice to the anemoi u/v variable names."""
+    if level == "10m":
+        return "10u", "10v"
+    return f"u_{level}", f"v_{level}"
+
 
 def parse_init_time(s):
     """Parse YYYYMMDDHH -> naive datetime (UTC implied)."""
@@ -78,10 +94,8 @@ def parse_init_time_from_filename(filepath):
 
 
 def find_nearest_station_indices(lat_arr, lon_arr, stations):
-    """
-    Simple degree-space nearest neighbour.
-    Returns a list of indices into lat_arr/lon_arr for each station.
-    """
+    """Return a list of flat indices into lat_arr/lon_arr, one per station.
+    Simple degree-space nearest neighbour."""
     indices = []
     for st in stations:
         dist = np.sqrt((lat_arr - st["lat"]) ** 2 + (lon_arr - st["lon"]) ** 2)
@@ -97,34 +111,44 @@ def seconds_since_epoch(dt):
     return int((dt - EPOCH).total_seconds())
 
 
-# =============================================================
-# CORE: read one anemoi-style file -> (leadtimes, fcst values per station)
-# =============================================================
+def uv_to_speed_dir(u, v):
+    """Convert eastward/northward wind components to speed (m/s) and
+    meteorological direction (deg, 0-360, direction wind is FROM,
+    0=N, 90=E, 180=S, 270=W)."""
+    speed = np.sqrt(u * u + v * v)
+    wdir = np.degrees(np.arctan2(-u, -v))
+    wdir = np.mod(wdir, 360.0)
+    return speed, wdir
+
 
 def decode_valid_times(time_var):
-    """
-    Decode this file's `time` variable into actual absolute datetimes.
-    """
+    """Decode this file's `time` variable into actual absolute datetimes."""
     calendar = getattr(time_var, "calendar", "standard")
     decoded = nc.num2date(time_var[:], units=time_var.units, calendar=calendar,
                           only_use_cftime_datetimes=False, only_use_python_datetimes=True)
     return np.array([datetime(t.year, t.month, t.day, t.hour, t.minute, t.second) for t in decoded])
 
 
-def extract_from_anemoi_file(filepath, variable, init_time):
+# =============================================================
+# CORE: read one anemoi-style file -> (leadtimes, speed/dir per station)
+# =============================================================
+
+def extract_wind_from_anemoi_file(filepath, u_var, v_var, init_time):
     """
     Returns:
         leadtimes  : sorted list of float lead hours (valid_time - init_time)
-        fcst_array : np.ndarray shape (n_leads, n_stations), float32
+        spd_array  : np.ndarray shape (n_leads, n_stations), float32, m/s
+        dir_array  : np.ndarray shape (n_leads, n_stations), float32, degrees
     """
     ds = nc.Dataset(filepath, "r")
 
     if "latitude" not in ds.variables or "longitude" not in ds.variables:
         raise KeyError(f"'latitude'/'longitude' not found in {filepath}. "
                         f"Available: {list(ds.variables.keys())[:20]}")
-    if variable not in ds.variables:
-        raise KeyError(f"'{variable}' not found in {filepath}. "
-                        f"Available: {[v for v in ds.variables if v not in ('time', 'latitude', 'longitude')]}")
+    for v in (u_var, v_var):
+        if v not in ds.variables:
+            raise KeyError(f"'{v}' not found in {filepath}. "
+                            f"Available: {[x for x in ds.variables if x not in ('time', 'latitude', 'longitude')]}")
 
     lat_arr = ds.variables["latitude"][:].astype("float64")
     lon_arr = ds.variables["longitude"][:].astype("float64")
@@ -140,26 +164,23 @@ def extract_from_anemoi_file(filepath, variable, init_time):
               f"NEGATIVE leadtime relative to init_time={init_time} -- double check the "
               f"filename-parsed init time is correct for this file.", file=sys.stderr)
 
-    # Pull the whole (time, values) slice for just the stations we need
-    raw = ds.variables[variable][:, station_indices]  # (n_time, n_stations)
-    raw = np.ma.filled(raw, np.nan).astype(np.float32)
-
-    if variable in TEMPERATURE_VARS and not extract_from_anemoi_file.keep_kelvin:
-        raw = raw - 273.15
-
+    # Pull the whole (time, values) slice for just the stations we need, for
+    # both u and v, in one shot each.
+    u_raw = np.ma.filled(ds.variables[u_var][:, station_indices], np.nan).astype(np.float32)
+    v_raw = np.ma.filled(ds.variables[v_var][:, station_indices], np.nan).astype(np.float32)
     ds.close()
+
+    spd, wdir = uv_to_speed_dir(u_raw, v_raw)
 
     order = np.argsort(leadtime_hours)
     sorted_leads = list(leadtime_hours[order])
-    fcst_array = raw[order, :]  # (n_leads, n_stations)
-    return sorted_leads, fcst_array
-
-
-extract_from_anemoi_file.keep_kelvin = False 
+    spd_array = spd[order, :]
+    dir_array = wdir[order, :]
+    return sorted_leads, spd_array, dir_array
 
 
 # =============================================================
-# WRITE / MERGE VERIF NETCDF  (unchanged from wrf2verif.py)
+# WRITE / MERGE VERIF NETCDF  (unchanged logic from wrf2verif_wind.py)
 # =============================================================
 
 def write_verif_nc(output_file, init_time, variable, leadtimes, fcst_array):
@@ -168,6 +189,7 @@ def write_verif_nc(output_file, init_time, variable, leadtimes, fcst_array):
 
     fcst_array shape: (n_leads, n_stations)
     leadtimes: sorted list of floats (hours)
+    variable: "WSPD" or "WDIR" — controls units/long_name only.
     """
     n_locs = len(STATIONS)
     ids = np.array([s["id"] for s in STATIONS], dtype=np.int32)
@@ -234,8 +256,13 @@ def _write_nc_file(output_file, variable, times_arr, leads_arr,
                    ids, lats, lons, alts, fcst_3d):
     """Low-level writer — always creates a fresh file."""
     n_times, n_leads, n_locs = fcst_3d.shape
-    is_temp = variable in TEMPERATURE_VARS and not extract_from_anemoi_file.keep_kelvin
-    units_str = "celsius" if is_temp else "unknown"
+
+    if variable == "WSPD":
+        units, long_name, std_name = "m s-1", "Wind Speed", "wind_speed"
+    elif variable == "WDIR":
+        units, long_name, std_name = "degrees", "Wind Direction", "wind_from_direction"
+    else:
+        units, long_name, std_name = "unknown", variable, variable
 
     with nc.Dataset(output_file, "w", format="NETCDF4") as out:
         out.createDimension("time", None)
@@ -271,20 +298,20 @@ def _write_nc_file(output_file, variable, times_arr, leads_arr,
         v = out.createVariable("obs", "f4", ("time", "leadtime", "location"), fill_value=np.nan)
         v[:] = np.full((n_times, n_leads, n_locs), np.nan, dtype=np.float32)
         v.long_name = "Observations (to be filled)"
-        v.units = units_str
+        v.units = units
 
         v = out.createVariable("fcst", "f4", ("time", "leadtime", "location"), fill_value=np.nan)
         v[:] = fcst_3d
-        v.long_name = f"Anemoi/ECMWF {variable} forecast"
-        v.units = units_str
+        v.long_name = f"anemoi {long_name} forecast"
+        v.units = units
         v.source_variable = variable
 
-        out.long_name = "Temperature" if is_temp else variable
-        out.standard_name = "air_temperature" if is_temp else variable
-        out.units = units_str
+        out.long_name = long_name
+        out.standard_name = std_name
+        out.units = units
         out.verif_version = "1.0.0"
         out.source = "anemoi/ECMWF-style model output"
-        out.created_by = "anemoi2verif.py"
+        out.created_by = "anemoi2verif_wind.py"
 
     print(f"  Done → {output_file}  "
           f"(times={n_times}, leadtimes={n_leads}, locations={n_locs})")
@@ -296,21 +323,22 @@ def _write_nc_file(output_file, variable, times_arr, leads_arr,
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Convert anemoi/ECMWF-style flat-grid NetCDF files to Verif-format NetCDF.",
+        description="Convert anemoi/ECMWF-style U/V output to Verif-format wind speed & direction NetCDF.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__
     )
     parser.add_argument("netcdf_files", nargs="+", help="Source file(s), one per init time, e.g. 20220701T00.nc")
-    parser.add_argument("variable", help="Variable name, e.g. 2t, 10u, 10v, msl, sp, t_850, u_500, v_250, z_100, tp")
-    parser.add_argument("output_netcdf_file", help="Output Verif-format NetCDF filename")
+    parser.add_argument("output_netcdf_file", help="Output base filename, e.g. output.nc "
+                                                     "(writes output_wspd.nc and output_wdir.nc)")
+    parser.add_argument("--level", default="10m", choices=LEVEL_CHOICES,
+                         help="Which u/v pair to use: 10m (default, surface 10u/10v) "
+                              "or a pressure level in hPa (50, 100, 250, 500, 850)")
     parser.add_argument("--init-time", default=None,
                          help="Force init time as YYYYMMDDHH instead of parsing it from the filename "
                               "(only sensible with a single input file)")
-    parser.add_argument("--keep-kelvin", action="store_true",
-                         help="Don't convert temperature variables (2t, t_50/100/250/500/850) to Celsius")
 
     args = parser.parse_args()
-    extract_from_anemoi_file.keep_kelvin = args.keep_kelvin
+    u_var, v_var = uv_variable_names(args.level)
 
     if args.init_time and len(args.netcdf_files) > 1:
         print("WARNING: --init-time was given with multiple files -- every file will be "
@@ -319,11 +347,17 @@ def main():
 
     forced_init = parse_init_time(args.init_time) if args.init_time else None
 
+    root, ext = os.path.splitext(args.output_netcdf_file)
+    if not ext:
+        ext = ".nc"
+    spd_file = f"{root}_wspd{ext}"
+    dir_file = f"{root}_wdir{ext}"
+
     print(f"\n{'='*60}")
-    print(f"  anemoi -> Verif converter")
-    print(f"  Variable  : {args.variable}")
+    print(f"  anemoi -> Verif wind converter")
+    print(f"  Level     : {args.level}  (u={u_var}, v={v_var})")
     print(f"  Files     : {len(args.netcdf_files)} file(s)")
-    print(f"  Output    : {args.output_netcdf_file}")
+    print(f"  Output    : {spd_file}, {dir_file}")
     print(f"{'='*60}\n")
 
     for fpath in sorted(args.netcdf_files):
@@ -337,11 +371,12 @@ def main():
                 print(f"  ERROR: {e}", file=sys.stderr)
                 sys.exit(1)
 
-        leadtimes, fcst_array = extract_from_anemoi_file(fpath, args.variable, init_time)
+        leadtimes, spd_array, dir_array = extract_wind_from_anemoi_file(fpath, u_var, v_var, init_time)
         print(f"  Init time : {init_time.strftime('%Y-%m-%d %H:%M UTC')}")
         print(f"  Lead hours: {leadtimes}")
 
-        write_verif_nc(args.output_netcdf_file, init_time, args.variable, leadtimes, fcst_array)
+        write_verif_nc(spd_file, init_time, "WSPD", leadtimes, spd_array)
+        write_verif_nc(dir_file, init_time, "WDIR", leadtimes, dir_array)
 
     print("\nDone!\n")
 
