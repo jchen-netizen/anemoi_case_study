@@ -101,15 +101,109 @@ def seconds_since_epoch(dt):
 # CORE: read one anemoi-style file -> (leadtimes, fcst values per station)
 # =============================================================
 
-def decode_valid_times(time_var):
+STATION_DIM_NAMES = ("values", "station", "location", "point", "cell")
+
+
+def _to_plain_datetime(t):
+    t = np.atleast_1d(t)[0]
+    return datetime(t.year, t.month, t.day, t.hour, t.minute, t.second)
+
+
+def decode_cf_times(time_var):
     """
-    Decode this file's `time` variable into actual absolute datetimes.
+    Decode a CF-style time variable (absolute times) into an array of
+    plain python datetimes.
     """
     calendar = getattr(time_var, "calendar", "standard")
     decoded = nc.num2date(time_var[:], units=time_var.units, calendar=calendar,
                           only_use_cftime_datetimes=False, only_use_python_datetimes=True)
+    decoded = np.atleast_1d(decoded)
     return np.array([datetime(t.year, t.month, t.day, t.hour, t.minute, t.second) for t in decoded])
 
+
+def get_leadtimes_and_init_time(ds, filename_init_time):
+    """
+    Returns (leadtime_hours, time_dim_name, resolved_init_time).
+    Supports 'time' (absolute) OR 'lead_time' + 'initial_date' (anemoi-style).
+    """
+    if "time" in ds.variables:
+        valid_times = decode_cf_times(ds.variables["time"])
+        leadtime_hours = np.array(
+            [(vt - filename_init_time).total_seconds() / 3600.0 for vt in valid_times]
+        )
+        return leadtime_hours, "time", filename_init_time
+
+    if "lead_time" in ds.variables:
+        lt_var = ds.variables["lead_time"]
+        leadtime_hours = lt_var[:].astype(np.float64)
+        units = getattr(lt_var, "units", "hours").lower()
+        if "second" in units:
+            leadtime_hours = leadtime_hours / 3600.0
+        elif "minute" in units:
+            leadtime_hours = leadtime_hours / 60.0
+
+        init_time = filename_init_time
+        if "initial_date" in ds.variables:
+            id_var = ds.variables["initial_date"]
+            try:
+                file_init_time = _to_plain_datetime(decode_cf_times(id_var))
+                if filename_init_time is not None and file_init_time != filename_init_time:
+                    print(f"  NOTE: file's own initial_date ({file_init_time}) differs from "
+                          f"the filename/--init-time value ({filename_init_time}); "
+                          f"using the file's initial_date.", file=sys.stderr)
+                init_time = file_init_time
+            except Exception as e:
+                print(f"  WARNING: could not decode 'initial_date' ({e}); "
+                      f"falling back to filename/--init-time value.", file=sys.stderr)
+
+        return leadtime_hours, "lead_time", init_time
+
+    raise KeyError(
+        "Could not find a recognized time coordinate. Looked for 'time' or "
+        f"'lead_time'+'initial_date'. Available variables: {list(ds.variables.keys())}"
+    )
+
+
+def extract_leadtime_station_slice(var, time_dim_name, station_indices):
+    """
+    Pulls a (n_leadtimes, n_stations) slice out of a variable regardless of
+    its dimension order (handles (time, values) or
+    (initial_date, lead_time, values)-style layouts).
+    """
+    dims = var.dimensions
+    slicer = tuple(
+        station_indices if d in STATION_DIM_NAMES else slice(None)
+        for d in dims
+    )
+    raw = var[slicer]
+    raw = np.ma.filled(raw, np.nan).astype(np.float32)
+
+    time_axis = None
+    squeeze_axes = []
+    for i, d in enumerate(dims):
+        if d == time_dim_name:
+            time_axis = i
+        elif d not in STATION_DIM_NAMES:
+            if raw.shape[i] == 1:
+                squeeze_axes.append(i)
+            else:
+                raise ValueError(
+                    f"Variable '{var.name}' has an unexpected extra dimension "
+                    f"'{d}' of size {raw.shape[i]}."
+                )
+
+    if time_axis is None:
+        raise ValueError(f"Variable '{var.name}' has no '{time_dim_name}' dimension (dims={dims}).")
+
+    for ax in sorted(squeeze_axes, reverse=True):
+        raw = np.squeeze(raw, axis=ax)
+        if ax < time_axis:
+            time_axis -= 1
+
+    if time_axis != 0:
+        raw = np.moveaxis(raw, time_axis, 0)
+
+    return raw
 
 def extract_from_anemoi_file(filepath, variable, init_time):
     """
@@ -132,17 +226,14 @@ def extract_from_anemoi_file(filepath, variable, init_time):
     print(f"  Finding nearest grid points in {os.path.basename(filepath)} ...")
     station_indices = find_nearest_station_indices(lat_arr, lon_arr, STATIONS)
 
-    valid_times = decode_valid_times(ds.variables["time"])
-    leadtime_hours = np.array([(vt - init_time).total_seconds() / 3600.0 for vt in valid_times])
+    leadtime_hours, time_dim_name, init_time = get_leadtimes_and_init_time(ds, init_time)
 
     if np.any(leadtime_hours < 0):
         print(f"  WARNING: {filepath} has {int(np.sum(leadtime_hours < 0))} step(s) with a "
               f"NEGATIVE leadtime relative to init_time={init_time} -- double check the "
               f"filename-parsed init time is correct for this file.", file=sys.stderr)
 
-    # Pull the whole (time, values) slice for just the stations we need
-    raw = ds.variables[variable][:, station_indices]  # (n_time, n_stations)
-    raw = np.ma.filled(raw, np.nan).astype(np.float32)
+    raw = extract_leadtime_station_slice(ds.variables[variable], time_dim_name, station_indices)
 
     if variable in TEMPERATURE_VARS and not extract_from_anemoi_file.keep_kelvin:
         raw = raw - 273.15
@@ -152,7 +243,7 @@ def extract_from_anemoi_file(filepath, variable, init_time):
     order = np.argsort(leadtime_hours)
     sorted_leads = list(leadtime_hours[order])
     fcst_array = raw[order, :]  # (n_leads, n_stations)
-    return sorted_leads, fcst_array
+    return sorted_leads, fcst_array, init_time
 
 
 extract_from_anemoi_file.keep_kelvin = False 
@@ -337,7 +428,7 @@ def main():
                 print(f"  ERROR: {e}", file=sys.stderr)
                 sys.exit(1)
 
-        leadtimes, fcst_array = extract_from_anemoi_file(fpath, args.variable, init_time)
+        leadtimes, fcst_array, init_time = extract_from_anemoi_file(fpath, args.variable, init_time)
         print(f"  Init time : {init_time.strftime('%Y-%m-%d %H:%M UTC')}")
         print(f"  Lead hours: {leadtimes}")
 
