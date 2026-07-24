@@ -36,6 +36,7 @@ import numpy as np
 import xarray as xr
 import netCDF4 as nc
 from datetime import datetime, timezone
+from wrf import getvar
 
 # =============================================================
 # STATIONS  — edit / extend this list as needed
@@ -148,12 +149,19 @@ def extract_from_wrf_files(wrf_files, init_time, variable):
         ds = xr.open_dataset(fpath)
         vals = np.full(n_stations, np.nan, dtype=np.float32)
 
-        for i, (sn, we) in enumerate(station_indices):
-            raw = float(ds[variable].isel(south_north=sn, west_east=we).values.flat[0])
-            # Convert Kelvin → Celsius for temperature variables
-            if variable in ("T2", "T", "TSK", "TH2"):
-                raw -= 273.15
-            vals[i] = raw
+        if variable == "rh2":
+            ncfile = nc.Dataset(fpath)
+            rh2 = getvar(ncfile, "rh2", timeidx=0)
+            ncfile.close()
+            for i, (sn, we) in enumerate(station_indices):
+                vals[i] = float(rh2[sn, we].values)
+        else:
+            for i, (sn, we) in enumerate(station_indices):
+                raw = float(ds[variable].isel(south_north=sn, west_east=we).values.flat[0])
+                # Convert Kelvin → Celsius for temperature variables
+                if variable in ("T2", "T", "TSK", "TH2"):
+                    raw -= 273.15
+                vals[i] = raw
 
         records[lead_int] = vals
         ds.close()
@@ -296,21 +304,33 @@ def _write_nc_file(output_file, variable, times_arr, leads_arr,
                                fill_value=np.nan)
         v[:] = np.full((n_times, n_leads, n_locs), np.nan, dtype=np.float32)
         v.long_name = "Observations (to be filled)"
-        v.units     = "celsius" if variable in ("T2", "T", "TSK", "TH2") else "unknown"
+        if variable in ("T2", "T", "TSK", "TH2"):
+            v.units = "celsius"
+        elif variable == "rh2":
+            v.units = "percent"
+        else:
+            v.units = "unknown"
 
         # fcst
         v = out.createVariable("fcst", "f4", ("time", "leadtime", "location"),
                                fill_value=np.nan)
         v[:] = fcst_3d
         v.long_name = f"WRF {variable} forecast"
-        v.units     = "celsius" if variable in ("T2", "T", "TSK", "TH2") else "unknown"
+        if variable in ("T2", "T", "TSK", "TH2"):
+            v.units = "celsius"
+        elif variable == "rh2":
+            v.units = "percent"
+        else:
+            v.units = "unknown"
         v.wrf_variable = variable
 
         # Global attributes (Verif standard)
-        out.long_name     = "Temperature" if variable in ("T2", "T", "TSK", "TH2") else variable
-        out.standard_name = "air_temperature" if variable in ("T2", "T", "TSK", "TH2") else variable
-        out.units         = "celsius" if variable in ("T2", "T", "TSK", "TH2") else "unknown"
-        out.verif_version = "1.0.0"
+        if variable in ("T2", "T", "TSK", "TH2"):
+            out.long_name, out.standard_name, out.units = "Temperature", "air_temperature", "celsius"
+        elif variable == "rh2":
+            out.long_name, out.standard_name, out.units = "Relative Humidity", "relative_humidity", "percent"
+        else:
+            out.long_name, out.standard_name, out.units = variable, variable, "unknown"
         out.source        = "WRF model output"
         out.created_by    = "wrf_to_verif.py"
 
