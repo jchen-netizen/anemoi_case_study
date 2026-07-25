@@ -156,15 +156,13 @@ def extract_from_wrf_files(wrf_files, init_time, variable):
             for i, (sn, we) in enumerate(station_indices):
                 vals[i] = float(rh2[sn, we].values)
         else:
+            ds = xr.open_dataset(fpath)
             for i, (sn, we) in enumerate(station_indices):
                 raw = float(ds[variable].isel(south_north=sn, west_east=we).values.flat[0])
-                # Convert Kelvin → Celsius for temperature variables
                 if variable in ("T2", "T", "TSK", "TH2"):
                     raw -= 273.15
                 vals[i] = raw
-
-        records[lead_int] = vals
-        ds.close()
+            ds.close()
 
     if not records:
         raise RuntimeError("No valid WRF files could be processed.")
