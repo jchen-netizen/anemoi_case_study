@@ -55,7 +55,7 @@ current="$start_ymd"
 while :; do
     FOLDER="${current:2}${HH}"    # strip century -> YYMMDDHH
     INIT_TIME="20${FOLDER}"
-    FILES=("${BASE_PATH}/${FOLDER}"/wrfout_d02_*00)
+    FILES=("${BASE_PATH}/${FOLDER}"/wrfout_d02_*00*)
 
     if [ -e "${FILES[0]}" ]; then
         echo ">>> ${FOLDER}  (init: ${INIT_TIME}, ${#FILES[@]} files)"
