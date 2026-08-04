@@ -19,7 +19,7 @@ def parse_args():
     )
     parser.add_argument(
         "--start-date",
-        default="2023-06-05",
+        default="2023-06-01",
         help="Start date in YYYY-MM-DD format.",
     )
     parser.add_argument(
@@ -201,7 +201,7 @@ def main():
 
             cbar_ax = fig.add_axes([0.26, 0.035, 0.5, 0.02])
             cb = fig.colorbar(sc, cax=cbar_ax, orientation="horizontal", label="kPa")
-            cb.set_label("kPa", fontsize=12)
+            cb.set_label("°C", fontsize=12)
             cb.ax.tick_params(labelsize=10)
 
             out_path = (

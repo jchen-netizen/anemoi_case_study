@@ -15,16 +15,16 @@ from wrf import getvar, latlon_coords
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Create ignition surface-pressure comparison maps."
+        description="Create ignition relative-humidity comparison maps."
     )
     parser.add_argument(
         "--start-date",
-        default="2023-06-06",
+        default="2023-05-17",
         help="Start date in YYYY-MM-DD format.",
     )
     parser.add_argument(
         "--end-date",
-        default="2023-06-10",
+        default="2023-05-22",
         help="End date in YYYY-MM-DD format.",
     )
     parser.add_argument(
@@ -42,17 +42,35 @@ def parse_args():
         default="/Users/jchen/Anemoi/ignition/norway",
         help="Directory containing Anemoi Norway NetCDF files.",
     )
-    parser.add_argument(
-        "--ai-global-root",
-        default="/Volumes/jchen/Share_anemoi/results/donnie_creek/global-model",
-        help="Directory containing Anemoi global-model NetCDF files.",
-    )
+    # parser.add_argument(
+    #     "--ai-global-root",
+    #     default="/Volumes/jchen/Share_anemoi/results/donnie_creek/global-model",
+    #     help="Directory containing Anemoi global-model NetCDF files.",
+    # )
     parser.add_argument(
         "--wrf-root",
         default="/Volumes/jchen/Share_Forecasts/WAC00WG-01",
         help="Directory containing WRF forecast output folders.",
     )
     return parser.parse_args()
+
+
+# Relative Humidity Calculation Function
+def calc_rh_from_t_td(t_kelvin, td_kelvin):
+    """
+    Calculate relative humidity (%) from 2-m temperature and 2-m dewpoint temperature (both in Kelvin),
+    using the Bolton (1980) saturation vapor pressure approximation:
+
+        e_s(T) = 6.112 * exp( 17.67 * T_C / (T_C + 243.5) )   [hPa]
+        RH     = 100 * e_s(Td) / e_s(T)
+
+    where T_C is temperature in Celsius.
+    """
+    t_c = t_kelvin - 273.15
+    td_c = td_kelvin - 273.15
+    e_s_t = 6.112 * np.exp((17.67 * t_c) / (t_c + 243.5))
+    e_s_td = 6.112 * np.exp((17.67 * td_c) / (td_c + 243.5))
+    return 100 * (e_s_td / e_s_t)
 
 
 def main():
@@ -69,15 +87,15 @@ def main():
 
         ai_bc_dir = f"{args.ai_bc_root}/{date.strftime('%Y%m%d')}T00.nc"
         ai_norway_dir = f"{args.ai_norway_root}/{date.strftime('%Y%m%d')}T00.nc"
-        ai_global_dir = f"{args.ai_global_root}/{date.strftime('%Y%m%d')}T00.nc"
+        # ai_global_dir = f"{args.ai_global_root}/{date.strftime('%Y%m%d')}T00.nc"
 
         ai_bc = xr.open_dataset(ai_bc_dir, engine="netcdf4")
         ai_norway = xr.open_dataset(ai_norway_dir, engine="netcdf4")
-        ai_global = xr.open_dataset(ai_global_dir, engine="netcdf4")
+        # ai_global = xr.open_dataset(ai_global_dir, engine="netcdf4")
 
         ai_norway_ds = Dataset(ai_norway_dir)
         ai_bc_ds = Dataset(ai_bc_dir)
-        ai_global_ds = Dataset(ai_global_dir)
+        # ai_global_ds = Dataset(ai_global_dir)
 
         for valid_hours in range(6, 85, 6):
             leadtime = valid_hours // 6
@@ -97,26 +115,39 @@ def main():
                 continue
 
             ai_bc_tds = ai_bc.sel(lead_time=ai_bc.lead_time[leadtime])
-            ai_bc_var = "sp"
-            ai_data = ai_bc_tds[ai_bc_var].values / 1000
+            ai_norway_tds = ai_norway.sel(lead_time=ai_norway.lead_time[leadtime])
+            # ai_global_tds = ai_global.sel(lead_time=ai_global.lead_time[leadtime])
+
+            # Relative Humidity Calculation Function
+            ai_bc_var_t = "2t"
+            ai_bc_var_d = "2d"
+            ai_norway_var_t = "2t"
+            ai_norway_var_d = "2d"
+            # ai_global_var_t = "2t"
+            # ai_global_var_d = "2d"
+
+            ai_data = calc_rh_from_t_td(
+                ai_bc_tds[ai_bc_var_t].values, ai_bc_tds[ai_bc_var_d].values
+            )
+            ai_norway_data = calc_rh_from_t_td(
+                ai_norway_tds[ai_norway_var_t].values, ai_norway_tds[ai_norway_var_d].values
+            )
+            # ai_global_data = calc_rh_from_t_td(
+            #     ai_global_tds[ai_global_var_t].values, ai_global_tds[ai_global_var_d].values
+            # )
+
             ai_bc_lat = ai_bc_tds["latitude"].values
             ai_bc_lon = ai_bc_tds["longitude"].values
 
-            ai_norway_tds = ai_norway.sel(lead_time=ai_norway.lead_time[leadtime])
-            ai_norway_var = "sp"
-            ai_norway_data = ai_norway_tds[ai_norway_var].values / 1000
             ai_norway_lat = ai_norway_tds["latitude"].values
             ai_norway_lon = ai_norway_tds["longitude"].values
 
-            ai_global_tds = ai_global.sel(lead_time=ai_global.lead_time[leadtime])
-            ai_global_var = "sp"
-            ai_global_data = ai_global_tds[ai_global_var].values / 1000
-            ai_global_lat = ai_global_tds["latitude"].values
-            ai_global_lon = ai_global_tds["longitude"].values
+            # ai_global_lat = ai_global_tds["latitude"].values
+            # ai_global_lon = ai_global_tds["longitude"].values
 
-            wrf_var = "PSFC"
+            wrf_var = "rh2"
             wrf_ds = Dataset(wrf_dir)
-            wrf_data = getvar(wrf_ds, wrf_var).values / 1000
+            wrf_data = getvar(wrf_ds, wrf_var).values
             wrf_lats, wrf_lons = latlon_coords(getvar(wrf_ds, wrf_var))
 
             fig, axes = plt.subplots(
@@ -130,14 +161,21 @@ def main():
             datasets = [
                 (ai_bc_lat, ai_bc_lon, ai_data, "Anemoi (BC)"),
                 (ai_norway_lat, ai_norway_lon, ai_norway_data, "Anemoi (Norway)"),
-                (ai_global_lat, ai_global_lon, ai_global_data, "Anemoi (Global)"),
+                (None, None, None, None),
                 (wrf_lats, wrf_lons, wrf_data, "WRF"),
             ]
 
             axes_flat = axes.flatten()
+            sc = None
 
             for idx, (ax, (lat, lon, data, title)) in enumerate(zip(axes_flat, datasets)):
                 row, col = idx // 2, idx % 2
+
+                if data is None:
+                    ax.set_facecolor("white")
+                    ax.set_extent([-108, -148, 43, 67], crs=ccrs.PlateCarree())
+                    ax.set_aspect("auto")
+                    continue
 
                 sc = ax.scatter(
                     lon,
@@ -145,8 +183,8 @@ def main():
                     c=data,
                     s=0.5,
                     transform=ccrs.PlateCarree(),
-                    cmap="RdYlBu_r",
-                    vmin=75,
+                    cmap="BrBG",
+                    vmin=0,
                     vmax=100,
                 )
                 ax.add_feature(cfeature.COASTLINE, linewidth=0.5)
@@ -197,15 +235,18 @@ def main():
             fig.text(0.10, 0.95, f"Init: {date.strftime('%Y-%m-%d')} 00Z", fontsize=14, ha="left")
             fig.text(0.70, 0.95, f"Hour: {leadtime * 6}", fontsize=14, ha="left")
             fig.text(0.78, 0.95, f"Valid: {valid_time}", fontsize=14, ha="left")
-            fig.suptitle("Surface Pressure", fontsize=16, y=0.99)
+            fig.suptitle("Relative Humidity at 2 Meters", fontsize=16, y=0.99)
 
             cbar_ax = fig.add_axes([0.26, 0.035, 0.5, 0.02])
-            cb = fig.colorbar(sc, cax=cbar_ax, orientation="horizontal", label="kPa")
-            cb.set_label("kPa", fontsize=12)
+            if sc is not None:
+                cb = fig.colorbar(sc, cax=cbar_ax, orientation="horizontal", label="%")
+            else:
+                cb = fig.colorbar(plt.cm.ScalarMappable(norm=plt.Normalize(0, 100), cmap="BrBG"), cax=cbar_ax, orientation="horizontal")
+            cb.set_label("%", fontsize=12)
             cb.ax.tick_params(labelsize=10)
 
             out_path = (
-                f"{save_dir}/surfpressure_{date.strftime('%Y%m%d')}"
+                f"{save_dir}/rh2_{date.strftime('%Y%m%d')}"
                 f"_leadtime{valid_hours:03d}h.png"
             )
             plt.savefig(out_path, dpi=150)
@@ -215,7 +256,7 @@ def main():
 
         ai_bc.close()
         ai_norway.close()
-        ai_global.close()
+        # ai_global.close()
 
         current_date += datetime.timedelta(days=1)
 
