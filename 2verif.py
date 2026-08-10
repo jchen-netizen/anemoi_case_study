@@ -26,6 +26,14 @@ import numpy as np
 import xarray as xr
 from netCDF4 import Dataset
 from wrf import getvar, latlon_coords
+import logging
+
+# configure simple logging so each step reports progress
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s: %(message)s',
+)
+logger = logging.getLogger(__name__)
  
 # ============================================================
 # CONFIG -- EDIT THIS BLOCK FOR EACH RUN
@@ -71,12 +79,12 @@ def cx_path(valid_dt):
             f"wrfout_d03_{valid_dt.strftime('%Y-%m-%d_%H:00:00')}_compressed")
  
 # ---- output files ----
-OUTPUT_DIR = "/Users/jchen/Anemoi/verif_output"
+OUTPUT_DIR = "/Users/jchen/Anemoi/2verif/2t"
 OUTPUT_FILES = {
-    'wrf':    os.path.join(OUTPUT_DIR, "verif_wrf.nc"),
-    'bc':     os.path.join(OUTPUT_DIR, "verif_bc.nc"),
-    'norway': os.path.join(OUTPUT_DIR, "verif_norway.nc"),
-    'global': os.path.join(OUTPUT_DIR, "verif_global.nc"),
+    'wrf':    os.path.join(OUTPUT_DIR, "WRF.nc"),
+    'bc':     os.path.join(OUTPUT_DIR, "Anemoi_BC.nc"),
+    'norway': os.path.join(OUTPUT_DIR, "Anemoi_Norway.nc"),
+    'global': os.path.join(OUTPUT_DIR, "Anemoi_Global.nc"),
 }
  
 # ============================================================
@@ -118,6 +126,8 @@ def nearest_obs_on_grid(obs_lat, obs_lon, obs_data, target_lat, target_lon):
     domains, but if your obs grid is very large and this gets slow /
     memory-heavy, chunk it with dask (`.chunk(...)`) before argmin.
     """
+    logger.debug("nearest_obs_on_grid: obs.shape=%s, tgt.shape=%s",
+                 obs_lat.shape, target_lat.shape)
     obs_lat_da = xr.DataArray(obs_lat.ravel(), dims="obs_pts")
     obs_lon_da = xr.DataArray(obs_lon.ravel(), dims="obs_pts")
     obs_data_da = xr.DataArray(obs_data.ravel(), dims="obs_pts")
@@ -146,6 +156,10 @@ def write_verif_file(filepath, init_dt, leadtime_hours, lat2d, lon2d,
     `location` = flattened native grid of this forecast source
     (assumed static across different init-date runs).
     """
+    if not leadtime_hours:
+        logger.warning("Skipping %s: no valid leadtimes available for this source", filepath)
+        return
+
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
  
     n_leadtime = len(leadtime_hours)
@@ -209,8 +223,8 @@ def write_verif_file(filepath, init_dt, leadtime_hours, lat2d, lon2d,
     v_fcst[t_index, :, :] = fcst_stack
  
     ds.close()
-    print(f"Wrote {filepath}  (time index {t_index}, init={init_dt}, "
-          f"{n_leadtime} leadtimes, {n_loc} locations)")
+    logger.info("Wrote %s (time index %s, init=%s, %s leadtimes, %s locations)",
+                filepath, t_index, init_dt, n_leadtime, n_loc)
  
  
 # ============================================================
@@ -218,57 +232,108 @@ def write_verif_file(filepath, init_dt, leadtime_hours, lat2d, lon2d,
 # ============================================================
  
 def main():
+    logger.info("Starting verif run for init=%s", DATE)
+
     # sources where "one file has all leadtimes" -- open once
-    bc_ds = xr.open_dataset(bc_path(DATE), engine='netcdf4')
-    norway_ds = xr.open_dataset(norway_path(DATE), engine='netcdf4')
-    global_ds = xr.open_dataset(global_path(DATE), engine='netcdf4')
+    bc_ds = None
+    norway_ds = None
+    global_ds = None
+
+    try:
+        logger.info("Opening bc dataset: %s", bc_path(DATE))
+        bc_ds = xr.open_dataset(bc_path(DATE), engine='netcdf4')
+    except FileNotFoundError:
+        logger.warning("[bc] missing init file %s, skipping this source", bc_path(DATE))
+
+    try:
+        logger.info("Opening norway dataset: %s", norway_path(DATE))
+        norway_ds = xr.open_dataset(norway_path(DATE), engine='netcdf4')
+    except FileNotFoundError:
+        logger.warning("[norway] missing init file %s, skipping this source", norway_path(DATE))
+
+    try:
+        logger.info("Opening global dataset: %s", global_path(DATE))
+        global_ds = xr.open_dataset(global_path(DATE), engine='netcdf4')
+    except FileNotFoundError:
+        logger.warning("[global] missing init file %s, skipping this source", global_path(DATE))
  
     sources = ['wrf', 'bc', 'norway', 'global']
     fcst_by_source = {k: [] for k in sources}
     obs_by_source = {k: [] for k in sources}
+    leadtime_hours_by_source = {k: [] for k in sources}
     grid_by_source = {}  # captured once per source, assumed static grid
  
     for li in LEADTIME_INDICES:
         hours = li * 6
         valid_dt = DATE + datetime.timedelta(hours=hours)
+        logger.info("Processing leadtime %s (hours=%s) valid_dt=%s", li, hours, valid_dt)
  
         # ---- obs (cx): one file per valid time ----
         cx_var = VARIABLES['cx']
-        obs_data, obs_lat, obs_lon = load_wrf_like(cx_path(valid_dt), cx_var['name'])
+        try:
+            logger.info("Loading obs (cx) for valid_dt: %s", cx_path(valid_dt))
+            obs_data, obs_lat, obs_lon = load_wrf_like(cx_path(valid_dt), cx_var['name'])
+            logger.info("Loaded obs data shape %s", obs_data.shape)
+        except FileNotFoundError:
+            logger.warning("[cx] missing obs file for valid_dt=%s, skipping this valid time", valid_dt)
+            continue
         obs_data = apply_units(obs_data, cx_var)
  
         # ---- wrf: hourly files, pick the one matching this valid time ----
         wrf_var = VARIABLES['wrf']
         try:
-            w_data, w_lat, w_lon = load_wrf_like(wrf_path(DATE, valid_dt), wrf_var['name'])
+            wrf_fp = wrf_path(DATE, valid_dt)
+            logger.info("Loading WRF file: %s", wrf_fp)
+            w_data, w_lat, w_lon = load_wrf_like(wrf_fp, wrf_var['name'])
             w_data = apply_units(w_data, wrf_var)
+            logger.info("Loaded WRF data shape %s", w_data.shape)
         except FileNotFoundError:
-            print(f"[wrf] missing file for valid_dt={valid_dt}, filling NaN")
-            if 'wrf' not in grid_by_source:
-                raise  # can't recover shape if we've never seen this grid
-            w_lat, w_lon = grid_by_source['wrf']
-            w_data = np.full(w_lat.shape, np.nan, dtype='float32')
-        grid_by_source.setdefault('wrf', (w_lat, w_lon))
-        w_obs = nearest_obs_on_grid(obs_lat, obs_lon, obs_data, w_lat, w_lon)
-        fcst_by_source['wrf'].append(w_data)
-        obs_by_source['wrf'].append(w_obs)
+            logger.warning("[wrf] missing file for valid_dt=%s, skipping this valid time", valid_dt)
+        else:
+            grid_by_source.setdefault('wrf', (w_lat, w_lon))
+            logger.info("Resampling obs onto wrf grid")
+            w_obs = nearest_obs_on_grid(obs_lat, obs_lon, obs_data, w_lat, w_lon)
+            fcst_by_source['wrf'].append(w_data)
+            obs_by_source['wrf'].append(w_obs)
+            leadtime_hours_by_source['wrf'].append(hours)
  
         # ---- bc / norway / global ----
         for key, xr_ds in [('bc', bc_ds), ('norway', norway_ds), ('global', global_ds)]:
+            if xr_ds is None:
+                continue
             vcfg = VARIABLES[key]
-            data, lat, lon = load_anemoi_leadtime(xr_ds, li, vcfg['name'])
+            try:
+                logger.info("Loading %s leadtime %s from dataset", key, li)
+                data, lat, lon = load_anemoi_leadtime(xr_ds, li, vcfg['name'])
+            except (FileNotFoundError, KeyError, IndexError, ValueError) as exc:
+                logger.warning("[%s] missing forecast for valid_dt=%s, skipping this valid time (%s)",
+                               key, valid_dt, exc)
+                continue
             data = apply_units(data, vcfg)
             grid_by_source.setdefault(key, (lat, lon))
+            logger.info("Resampling obs onto %s grid", key)
             o = nearest_obs_on_grid(obs_lat, obs_lon, obs_data, lat, lon)
             fcst_by_source[key].append(data)
             obs_by_source[key].append(o)
+            leadtime_hours_by_source[key].append(hours)
  
-    bc_ds.close(); norway_ds.close(); global_ds.close()
+    if bc_ds is not None:
+        logger.info("Closing bc dataset")
+        bc_ds.close()
+    if norway_ds is not None:
+        logger.info("Closing norway dataset")
+        norway_ds.close()
+    if global_ds is not None:
+        logger.info("Closing global dataset")
+        global_ds.close()
  
     for key in sources:
+        if key not in grid_by_source:
+            logger.warning("Skipping %s: no usable grid available", OUTPUT_FILES[key])
+            continue
         lat2d, lon2d = grid_by_source[key]
         write_verif_file(
-            OUTPUT_FILES[key], DATE, LEADTIME_HOURS, lat2d, lon2d,
+            OUTPUT_FILES[key], DATE, leadtime_hours_by_source[key], lat2d, lon2d,
             obs_by_source[key], fcst_by_source[key],
             LONG_NAME, STANDARD_NAME,
         )
