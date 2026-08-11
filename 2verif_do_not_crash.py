@@ -28,11 +28,11 @@ LEADTIME_HOURS = [i * 6 for i in LEADTIME_INDICES]
 # ---- variable to extract from each source + unit fix ----
 # final_value = raw_value * scale + offset
 VARIABLES = {
-    'wrf':    {'name': 'T2', 'scale': 1.0, 'offset': -273.15},
-    'cx':     {'name': 'T2', 'scale': 1.0, 'offset': -273.15},
-    'bc':     {'name': '2t', 'scale': 1.0, 'offset': -273.15},
-    'norway': {'name': '2t', 'scale': 1.0, 'offset': -273.15},
-    'global': {'name': '2t', 'scale': 1.0, 'offset': -273.15},
+    'wrf':    {'name': 'T2', 'scale': 1.0, 'offset': -273.15, 'units': '°C'},
+    'cx':     {'name': 'T2', 'scale': 1.0, 'offset': -273.15, 'units': '°C'},
+    'bc':     {'name': '2t', 'scale': 1.0, 'offset': -273.15, 'units': '°C'},
+    'norway': {'name': '2t', 'scale': 1.0, 'offset': -273.15, 'units': '°C'},
+    'global': {'name': '2t', 'scale': 1.0, 'offset': -273.15, 'units': '°C'},
 }
  
 LONG_NAME = "Temperature"
@@ -123,7 +123,7 @@ def init_epoch_seconds(dt):
  
 def write_verif_file(filepath, init_dt, leadtime_hours, lat2d, lon2d,
                       obs_2d_by_leadtime, fcst_2d_by_leadtime,
-                      long_name, standard_name):
+                      long_name, standard_name, units):
     """
     Create or append-to a verif-format NetCDF file.
     `location` = flattened native grid of this forecast source
@@ -159,6 +159,8 @@ def write_verif_file(filepath, init_dt, leadtime_hours, lat2d, lon2d,
                                    fill_value=np.nan)
         v_fcst = ds.createVariable('fcst', 'f4', ('time', 'leadtime', 'location'),
                                     fill_value=np.nan)
+        v_obs.units = units
+        v_fcst.units = units
  
         v_leadtime[:] = np.array(leadtime_hours, dtype='float32')
         v_location[:] = np.arange(n_loc, dtype='int32')
@@ -308,7 +310,7 @@ def main():
         write_verif_file(
             OUTPUT_FILES[key], DATE, leadtime_hours_by_source[key], lat2d, lon2d,
             obs_by_source[key], fcst_by_source[key],
-            LONG_NAME, STANDARD_NAME,
+            LONG_NAME, STANDARD_NAME, OUTPUT_UNITS
         )
  
  
