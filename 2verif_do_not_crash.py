@@ -37,6 +37,7 @@ VARIABLES = {
  
 LONG_NAME = "Temperature"
 STANDARD_NAME = "air_temperature"
+OUTPUT_UNITS = "°C"
  
 # ---- path builders (mirror the patterns you gave) ----
 def wrf_path(date, valid_dt):
