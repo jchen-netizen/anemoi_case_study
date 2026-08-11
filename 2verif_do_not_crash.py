@@ -170,6 +170,7 @@ def write_verif_file(filepath, init_dt, leadtime_hours, lat2d, lon2d,
  
         ds.long_name = long_name
         ds.standard_name = standard_name
+        ds.units = units
         ds.verif_version = "1.0.0"
  
         t_index = 0
