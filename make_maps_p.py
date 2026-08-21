@@ -64,22 +64,32 @@ RUN_MODELS = {
 # ---- Pressure levels ------------------------------------
 # LEVEL is the actual hPa value
 # (z_{LEVEL}, u_{LEVEL}, v_{LEVEL}).
-LEVEL = 250
+LEVEL = 850
 
 # LEVEL_WRF / LEVEL_CX are weird
 # wrf: 50 100 250 500 850
 # cx: 1000.,  925.,  850.,  700.,  500.,  400.,  300.,  250.,  200.,  150., 100., 50.
-LEVEL_WRF = 2
-LEVEL_CX = 7
+LEVEL_WRF = 4
+LEVEL_CX = 2
 
 # Geopotential contour range (dam) -- depends on LEVEL, tune per run.
-VMIN_LINE = 980
-VMAX_LINE = 1040
+# 50 hPa:
+# 100 hPa: 1580, 1630
+# 250 hPa: 980, 1050
+# 500 hPa: 520, 560
+# 850 hPa: 130, 150
+# 1000 hPa: 
+VMIN_LINE = 130
+VMAX_LINE = 150
 LINE_STEP = 2
 
 # Wind speed fill range (km/h) -- depends on LEVEL, tune per run.
+# 100 hPa: 
+# 250 hPa: 200
+# 500 hPa: 100
+# 850 hPa: 100
 VMIN_WSPD = 0
-VMAX_WSPD = 200
+VMAX_WSPD = 100
 WSPD_UNITS = "km/h"
 
 # ---- ClimatEx time --------------------------------------------------
