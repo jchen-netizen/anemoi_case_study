@@ -14,7 +14,6 @@ Link to Verif data format: https://github.com/WFRT/verif/wiki/Arranging-my-own-d
 * `fill_obs.py` fill observation values from CSV into Verif ready NetCDF.
 * `slice_wrf.ipynb` manually slice WRF forecast NetCDF file for sanity check.
 * `observation.ipynb` manually extract and clean the BC Wildfire weather stations observation data.
-* `data/` output files from `run_wrf2verif.sh`, `extract_obs.py`, `fill_obs.py`.
 
 **2D Verification**
 * `satellite_imagery.ipynb` compare satellite observations, tifs with models forecasts.
